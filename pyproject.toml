@@ -1,0 +1,27 @@
+[project]
+name = "mailcleaner"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Sonu Thapa", email = "37073011+mesailesh7@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "laya>=0.4.1",
+    "pydantic>=2.14.0",
+    "python-dotenv>=1.2.4",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+mailcleaner = "mailcleaner:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
