@@ -19,7 +19,7 @@ from mailcleaner.config import (
 )
 
 class Rule(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     enabled: bool = True
     field: str = "sender"
@@ -230,9 +230,13 @@ def upsert_rule(rule_data: Dict[str, Any]) -> Rule:
                     setattr(r, key, val)
                 rule_obj = r
                 break
+    else:
+        rule_data.pop("id", None)
 
     if rule_obj is None:
         rule_obj = Rule(**rule_data)
+        if not rule_obj.id:
+            rule_obj.id = str(uuid.uuid4())
         rules.append(rule_obj)
 
     save_rules(rules)

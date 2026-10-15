@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MailCleaner - Intelligent Local Inbox Organizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="text-lg font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">MailCleaner</span>
+          <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Local AI & Rules</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 sm:gap-4">
+        <div id="active-account-badge" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="active-account-name" class="font-medium text-slate-300">Checking account...</span>
+        </div>
+        <nav class="flex space-x-1">
+          <button onclick="switchTab('scan')" id="tab-btn-scan" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition bg-indigo-600 text-white shadow-sm">Dashboard</button>
+          <button onclick="switchTab('accounts')" id="tab-btn-accounts" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition text-slate-400 hover:text-white hover:bg-slate-800">Accounts</button>
+          <button onclick="switchTab('rules')" id="tab-btn-rules" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition text-slate-400 hover:text-white hover:bg-slate-800">Rules & Routing</button>
+          <button onclick="switchTab('help')" id="tab-btn-help" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition text-slate-400 hover:text-white hover:bg-slate-800">Help</button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div id="notification-banner" class="hidden mb-6 p-4 rounded-xl border text-sm flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span id="notification-icon"></span>
+        <span id="notification-text"></span>
+      </div>
+      <button onclick="dismissNotification()" class="text-slate-400 hover:text-white">&times;</button>
+    </div>
+
+    <section id="tab-scan" class="space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Mailbox Account</label>
+              <select id="scan-account-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                <option value="">Loading accounts...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Email Batch Limit</label>
+              <select id="scan-limit-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                <option value="10">10 emails</option>
+                <option value="25" selected>25 emails</option>
+                <option value="50">50 emails</option>
+                <option value="100">100 emails</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Execution Mode</label>
+              <select id="scan-mode-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                <option value="dry-run" selected>Dry-Run (Safe Preview)</option>
+                <option value="live">Live Execution (Apply Immediately)</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex items-end">
+            <button id="start-scan-btn" onclick="startScan()" class="w-full md:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Scan & Clean Inbox</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="progress-container" class="hidden mt-6 pt-5 border-t border-slate-800">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span id="progress-status" class="flex items-center gap-2">
+              <span class="inline-block w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+              <span id="progress-message">Connecting to mail server...</span>
+            </span>
+            <span id="progress-percentage" class="font-semibold text-indigo-400">0%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div id="progress-bar-fill" class="bg-gradient-to-r from-indigo-500 to-violet-500 h-2.5 rounded-full transition-all duration-300 w-0"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="text-xs font-medium text-slate-400">Total Scanned</div>
+          <div id="stat-total" class="text-2xl font-bold text-white mt-1">0</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="text-xs font-medium text-emerald-400">Keep in Inbox</div>
+          <div id="stat-keep" class="text-2xl font-bold text-emerald-400 mt-1">0</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="text-xs font-medium text-blue-400">Move to Folders</div>
+          <div id="stat-move" class="text-2xl font-bold text-blue-400 mt-1">0</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="text-xs font-medium text-rose-400">Marked to Delete</div>
+          <div id="stat-delete" class="text-2xl font-bold text-rose-400 mt-1">0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="p-4 sm:px-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <h3 class="font-semibold text-slate-200">Email Decisions</h3>
+            <span id="results-count" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">0 emails</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <button id="apply-changes-btn" onclick="applyBatchDecisions()" class="hidden px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>Apply Changes Now</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-950/40 text-xs uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-4 w-12 text-center">UID</th>
+                <th class="py-3 px-4 w-1/4">Sender</th>
+                <th class="py-3 px-4 w-1/3">Subject</th>
+                <th class="py-3 px-4">Reason / Rule</th>
+                <th class="py-3 px-4">Target Action</th>
+                <th class="py-3 px-4 w-28 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body" class="divide-y divide-slate-800/60 font-normal">
+              <tr>
+                <td colspan="6" class="py-12 text-center text-slate-500">
+                  No emails scanned yet. Choose your parameters and click "Scan & Clean Inbox" above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-accounts" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1 space-y-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="font-semibold text-slate-200 mb-2">Popular Providers</h3>
+            <p class="text-xs text-slate-400 mb-4">Click any provider to autofill its secure IMAP connection settings.</p>
+            <div id="provider-preset-list" class="space-y-2">
+            </div>
+          </div>
+          <div id="provider-hint-card" class="bg-indigo-950/40 border border-indigo-800/40 rounded-2xl p-5 text-xs text-indigo-300">
+            <h4 class="font-semibold text-indigo-200 mb-1 flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Security Note</span>
+            </h4>
+            <p id="provider-hint-text">Select a provider above to view recommended credentials guidance.</p>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+              <div>
+                <h3 class="font-semibold text-slate-200" id="account-form-title">Add Email Account</h3>
+                <p class="text-xs text-slate-400">Credentials are stored locally with encrypted machine keys.</p>
+              </div>
+              <button onclick="resetAccountForm()" class="text-xs text-slate-400 hover:text-white underline">Clear</button>
+            </div>
+
+            <form id="account-form" onsubmit="handleSaveAccount(event)" class="space-y-4">
+              <input type="hidden" id="account-id">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Profile Name</label>
+                  <input type="text" id="acc-name" required placeholder="e.g. My Personal Gmail" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Provider Type</label>
+                  <select id="acc-provider" onchange="applyProviderPreset(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option value="gmail">Gmail</option>
+                    <option value="icloud">iCloud Mail</option>
+                    <option value="outlook">Outlook / Hotmail</option>
+                    <option value="yahoo">Yahoo Mail</option>
+                    <option value="fastmail">Fastmail</option>
+                    <option value="custom" selected>Custom IMAP</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">IMAP Host</label>
+                  <input type="text" id="acc-host" required placeholder="imap.mail.me.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">IMAP Port</label>
+                  <input type="number" id="acc-port" required value="993" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Email / Username</label>
+                  <input type="text" id="acc-user" required placeholder="user@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Password / App Password</label>
+                  <div class="relative">
+                    <input type="password" id="acc-pass" placeholder="App-Specific Password" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <button type="button" onclick="togglePasswordVisibility('acc-pass')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" id="acc-ssl" checked class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0">
+                <label for="acc-ssl" class="text-xs text-slate-300">Use SSL/TLS (Port 993 recommended)</label>
+              </div>
+
+              <div class="flex flex-col sm:flex-row items-center justify-end gap-3 pt-3">
+                <button type="button" onclick="testAccountCredentials()" id="test-conn-btn" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+                  Test Connection
+                </button>
+                <button type="submit" id="save-account-btn" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition">
+                  Save Account
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h3 class="font-semibold text-slate-200 mb-4">Configured Accounts</h3>
+            <div id="saved-accounts-list" class="space-y-3">
+              <p class="text-xs text-slate-500">No accounts saved yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-rules" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl sticky top-24">
+            <h3 class="font-semibold text-slate-200 mb-1" id="rule-form-title">Create Sorting Rule</h3>
+            <p class="text-xs text-slate-400 mb-4">Manual rules execute first and route matching emails to designated folders.</p>
+
+            <form id="rule-form" onsubmit="handleSaveRule(event)" class="space-y-4">
+              <input type="hidden" id="rule-id">
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Rule Name</label>
+                <input type="text" id="rule-name" required placeholder="e.g. Move Stripe to Invoices" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Condition Field</label>
+                <select id="rule-field" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                  <option value="sender">Sender Address / Name</option>
+                  <option value="subject">Subject Line</option>
+                  <option value="domain">Sender Domain (e.g. stripe.com)</option>
+                  <option value="body">Email Body Text</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Comparison</label>
+                <select id="rule-operator" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                  <option value="contains" selected>contains</option>
+                  <option value="equals">equals exactly</option>
+                  <option value="starts_with">starts with</option>
+                  <option value="ends_with">ends with</option>
+                  <option value="regex">regex pattern</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Value</label>
+                <input type="text" id="rule-value" required placeholder="e.g. billing@ or @github.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Action</label>
+                <select id="rule-action" onchange="toggleRuleFolderInput(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                  <option value="move" selected>Move to Folder</option>
+                  <option value="keep">Keep in Inbox</option>
+                  <option value="delete">Delete / Send to Trash</option>
+                  <option value="receipts">Move to Receipts</option>
+                  <option value="newsletters">Move to Newsletters</option>
+                  <option value="notifications">Move to Notifications</option>
+                </select>
+              </div>
+
+              <div id="rule-folder-group">
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Folder Name</label>
+                <input type="text" id="rule-folder" placeholder="e.g. Finance or Archive/2026" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+              </div>
+
+              <div class="flex items-center justify-between pt-2">
+                <button type="button" onclick="resetRuleForm()" class="text-xs text-slate-400 hover:text-white">Cancel</button>
+                <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition">Save Rule</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h3 class="font-semibold text-slate-200">Active Mail Rules</h3>
+                <p class="text-xs text-slate-400">Rules are evaluated sequentially. First match applies.</p>
+              </div>
+            </div>
+            <div id="rules-list" class="space-y-3">
+              <p class="text-xs text-slate-500">Loading rules...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-help" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-white mb-2">MailCleaner Cross-Platform Guide</h2>
+          <p class="text-sm text-slate-400">MailCleaner is an intelligent, offline inbox cleaner running locally on Windows, macOS, and Linux.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-semibold text-indigo-300 text-sm mb-2 flex items-center gap-1.5">
+              <span>Google / Gmail Setup</span>
+            </h4>
+            <ol class="text-xs text-slate-300 space-y-1.5 list-decimal list-inside">
+              <li>Open Google Account Security settings.</li>
+              <li>Ensure 2-Step Verification is active.</li>
+              <li>Search for "App passwords".</li>
+              <li>Create a password named "MailCleaner".</li>
+              <li>Paste the 16-character code as your password.</li>
+            </ol>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-semibold text-indigo-300 text-sm mb-2 flex items-center gap-1.5">
+              <span>Apple / iCloud Setup</span>
+            </h4>
+            <ol class="text-xs text-slate-300 space-y-1.5 list-decimal list-inside">
+              <li>Log in to appleid.apple.com.</li>
+              <li>Navigate to Sign-In and Security.</li>
+              <li>Select App-Specific Passwords.</li>
+              <li>Generate a key for MailCleaner.</li>
+              <li>Host is set to imap.mail.me.com on port 993.</li>
+            </ol>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-semibold text-indigo-300 text-sm mb-2 flex items-center gap-1.5">
+              <span>Security & Privacy</span>
+            </h4>
+            <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+              <li>100% offline local classification via Laya.</li>
+              <li>No email content ever sent to third-party APIs.</li>
+              <li>App passwords stored locally with Fernet encryption.</li>
+              <li>Dry-run mode by default prevents unintended changes.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let providers = {};
+    let accounts = [];
+    let rules = [];
+    let scannedEmails = [];
+
+    function switchTab(tabId) {
+      document.querySelectorAll('section[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-slate-800');
+      });
+
+      const activeTab = document.getElementById(`tab-${tabId}`);
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (activeTab) activeTab.classList.remove('hidden');
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400', 'hover:text-white', 'hover:bg-slate-800');
+        activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+      }
+    }
+
+    function showNotification(text, type = 'info') {
+      const banner = document.getElementById('notification-banner');
+      const msg = document.getElementById('notification-text');
+      const icon = document.getElementById('notification-icon');
+      msg.textContent = text;
+
+      banner.className = 'mb-6 p-4 rounded-xl border text-sm flex items-center justify-between ';
+      if (type === 'success') {
+        banner.classList.add('bg-emerald-950/40', 'border-emerald-800/40', 'text-emerald-300');
+        icon.innerHTML = '<span class="text-emerald-400 font-bold">&#10003;</span>';
+      } else if (type === 'error') {
+        banner.classList.add('bg-rose-950/40', 'border-rose-800/40', 'text-rose-300');
+        icon.innerHTML = '<span class="text-rose-400 font-bold">&#9888;</span>';
+      } else {
+        banner.classList.add('bg-indigo-950/40', 'border-indigo-800/40', 'text-indigo-300');
+        icon.innerHTML = '<span class="text-indigo-400 font-bold">&#8505;</span>';
+      }
+      banner.classList.remove('hidden');
+    }
+
+    function dismissNotification() {
+      document.getElementById('notification-banner').classList.add('hidden');
+    }
+
+    function togglePasswordVisibility(fieldId) {
+      const input = document.getElementById(fieldId);
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    async function loadInitialData() {
+      try {
+        const [provRes, accRes, rulesRes] = await Promise.all([
+          fetch('/api/providers'),
+          fetch('/api/accounts'),
+          fetch('/api/rules')
+        ]);
+        providers = await provRes.json();
+        accounts = await accRes.json();
+        rules = await rulesRes.json();
+
+        renderProviderPresets();
+        renderAccounts();
+        renderRules();
+        updateActiveAccountUI();
+      } catch (err) {
+        showNotification('Failed to initialize MailCleaner data: ' + err.message, 'error');
+      }
+    }
+
+    function renderProviderPresets() {
+      const list = document.getElementById('provider-preset-list');
+      list.innerHTML = '';
+      for (const [key, p] of Object.entries(providers)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/40 transition flex items-center justify-between text-xs';
+        btn.innerHTML = `<span class="font-medium text-slate-200">${p.name}</span><span class="text-slate-500 font-mono text-[10px]">${p.host || 'custom'}</span>`;
+        btn.onclick = () => {
+          document.getElementById('acc-provider').value = key;
+          applyProviderPreset(key);
+        };
+        list.appendChild(btn);
+      }
+    }
+
+    function applyProviderPreset(key) {
+      const p = providers[key];
+      if (!p) return;
+      if (p.host) document.getElementById('acc-host').value = p.host;
+      if (p.port) document.getElementById('acc-port').value = p.port;
+      document.getElementById('acc-ssl').checked = p.ssl !== false;
+      document.getElementById('provider-hint-text').textContent = p.hint || 'Enter your IMAP credentials.';
+    }
+
+    function renderAccounts() {
+      const select = document.getElementById('scan-account-select');
+      const list = document.getElementById('saved-accounts-list');
+      select.innerHTML = '';
+      list.innerHTML = '';
+
+      if (accounts.length === 0) {
+        select.innerHTML = '<option value="">No accounts found - add one in Accounts tab</option>';
+        list.innerHTML = '<p class="text-xs text-slate-500">No accounts saved yet.</p>';
+        return;
+      }
+
+      accounts.forEach(acc => {
+        const opt = document.createElement('option');
+        opt.value = acc.id;
+        opt.textContent = `${acc.name} (${acc.username})`;
+        if (acc.is_active) opt.selected = true;
+        select.appendChild(opt);
+
+        const card = document.createElement('div');
+        card.className = 'p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs';
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-slate-200">${acc.name}</span>
+              ${acc.is_active ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium">Active</span>' : ''}
+            </div>
+            <div class="text-slate-400 text-[11px] mt-0.5">${acc.username} &bull; ${acc.host}:${acc.port}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            ${!acc.is_active ? `<button onclick="activateAccount('${acc.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Set Active</button>` : ''}
+            <button onclick="deleteAccount('${acc.id}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400">Delete</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function updateActiveAccountUI() {
+      const active = accounts.find(a => a.is_active) || accounts[0];
+      const badge = document.getElementById('active-account-badge');
+      const name = document.getElementById('active-account-name');
+      if (active) {
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+        name.textContent = `${active.name} (${active.username})`;
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    async function testAccountCredentials() {
+      const host = document.getElementById('acc-host').value;
+      const port = parseInt(document.getElementById('acc-port').value || '993');
+      const user = document.getElementById('acc-user').value;
+      const pass = document.getElementById('acc-pass').value;
+      const ssl = document.getElementById('acc-ssl').checked;
+      const btn = document.getElementById('test-conn-btn');
+
+      if (!host || !user || !pass) {
+        showNotification('Please fill in host, username, and password to test.', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Testing...';
+
+      try {
+        const res = await fetch('/api/accounts/test', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host, port, username: user, password: pass, ssl})
+        });
+        const data = await res.json();
+        if (data.success) {
+          showNotification('Connection successful! Credentials verified.', 'success');
+        } else {
+          showNotification('Connection failed: ' + data.message, 'error');
+        }
+      } catch (err) {
+        showNotification('Connection error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Test Connection';
+      }
+    }
+
+    async function handleSaveAccount(e) {
+      e.preventDefault();
+      const id = document.getElementById('account-id').value || null;
+      const name = document.getElementById('acc-name').value;
+      const provider = document.getElementById('acc-provider').value;
+      const host = document.getElementById('acc-host').value;
+      const port = parseInt(document.getElementById('acc-port').value || '993');
+      const username = document.getElementById('acc-user').value;
+      const password = document.getElementById('acc-pass').value;
+      const ssl = document.getElementById('acc-ssl').checked;
+
+      try {
+        const res = await fetch('/api/accounts', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id, name, provider, host, port, username, password, ssl, set_active: true})
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to save account');
+        }
+        showNotification('Account profile saved successfully!', 'success');
+        resetAccountForm();
+        const accRes = await fetch('/api/accounts');
+        accounts = await accRes.json();
+        renderAccounts();
+        updateActiveAccountUI();
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    async function activateAccount(id) {
+      try {
+        const res = await fetch(`/api/accounts/${id}/activate`, {method: 'POST'});
+        if (!res.ok) throw new Error('Failed to activate account');
+        const accRes = await fetch('/api/accounts');
+        accounts = await accRes.json();
+        renderAccounts();
+        updateActiveAccountUI();
+        showNotification('Active account updated.', 'success');
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    async function deleteAccount(id) {
+      if (!confirm('Are you sure you want to delete this account profile?')) return;
+      try {
+        const res = await fetch(`/api/accounts/${id}`, {method: 'DELETE'});
+        if (!res.ok) throw new Error('Failed to delete account');
+        const accRes = await fetch('/api/accounts');
+        accounts = await accRes.json();
+        renderAccounts();
+        updateActiveAccountUI();
+        showNotification('Account deleted.', 'info');
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    function resetAccountForm() {
+      document.getElementById('account-form').reset();
+      document.getElementById('account-id').value = '';
+      document.getElementById('account-form-title').textContent = 'Add Email Account';
+    }
+
+    function renderRules() {
+      const list = document.getElementById('rules-list');
+      list.innerHTML = '';
+
+      if (rules.length === 0) {
+        list.innerHTML = '<p class="text-xs text-slate-500">No manual rules defined.</p>';
+        return;
+      }
+
+      rules.forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs';
+        const actionDisplay = r.action === 'delete' ? '<span class="text-rose-400 font-semibold">Delete</span>' :
+                              r.action === 'keep' ? '<span class="text-emerald-400 font-semibold">Keep</span>' :
+                              `<span class="text-blue-400 font-semibold">Move to ${r.target_folder || r.action}</span>`;
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-slate-200">${r.name}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full ${r.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}">${r.enabled ? 'Enabled' : 'Disabled'}</span>
+            </div>
+            <div class="text-slate-400 text-[11px] mt-1">
+              If <span class="text-indigo-300 font-mono">${r.field}</span> ${r.operator} <span class="text-slate-200 font-semibold">"${r.value}"</span> &rarr; ${actionDisplay}
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="toggleRuleState('${r.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">${r.enabled ? 'Disable' : 'Enable'}</button>
+            <button onclick="deleteRule('${r.id}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400">Delete</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function toggleRuleFolderInput(actionVal) {
+      const group = document.getElementById('rule-folder-group');
+      if (actionVal === 'move') {
+        group.classList.remove('hidden');
+      } else {
+        group.classList.add('hidden');
+      }
+    }
+
+    async function handleSaveRule(e) {
+      e.preventDefault();
+      const id = document.getElementById('rule-id').value || null;
+      const name = document.getElementById('rule-name').value;
+      const field = document.getElementById('rule-field').value;
+      const operator = document.getElementById('rule-operator').value;
+      const value = document.getElementById('rule-value').value;
+      const action = document.getElementById('rule-action').value;
+      const target_folder = action === 'move' ? document.getElementById('rule-folder').value : null;
+
+      try {
+        const res = await fetch('/api/rules', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id, name, field, operator, value, action, target_folder, enabled: true})
+        });
+        if (!res.ok) throw new Error('Failed to save rule');
+        showNotification('Rule saved successfully!', 'success');
+        resetRuleForm();
+        const rulesRes = await fetch('/api/rules');
+        rules = await rulesRes.json();
+        renderRules();
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    async function toggleRuleState(id) {
+      const r = rules.find(rule => rule.id === id);
+      if (!r) return;
+      r.enabled = !r.enabled;
+      try {
+        await fetch('/api/rules', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(r)
+        });
+        renderRules();
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    async function deleteRule(id) {
+      if (!confirm('Delete this sorting rule?')) return;
+      try {
+        const res = await fetch(`/api/rules/${id}`, {method: 'DELETE'});
+        if (!res.ok) throw new Error('Failed to delete rule');
+        rules = rules.filter(r => r.id !== id);
+        renderRules();
+        showNotification('Rule deleted.', 'info');
+      } catch (err) {
+        showNotification(err.message, 'error');
+      }
+    }
+
+    function resetRuleForm() {
+      document.getElementById('rule-form').reset();
+      document.getElementById('rule-id').value = '';
+      toggleRuleFolderInput('move');
+    }
+
+    function setProgressBar(percent, message) {
+      const container = document.getElementById('progress-container');
+      const bar = document.getElementById('progress-bar-fill');
+      const statusText = document.getElementById('progress-message');
+      const percText = document.getElementById('progress-percentage');
+
+      container.classList.remove('hidden');
+      bar.style.width = `${Math.min(Math.max(percent, 0), 100)}%`;
+      if (message) statusText.textContent = message;
+      percText.textContent = `${Math.round(percent)}%`;
+    }
+
+    async function startScan() {
+      const accountId = document.getElementById('scan-account-select').value;
+      const limit = parseInt(document.getElementById('scan-limit-select').value || '25');
+      const execute = document.getElementById('scan-mode-select').value === 'live';
+      const scanBtn = document.getElementById('start-scan-btn');
+      const tableBody = document.getElementById('results-table-body');
+
+      scanBtn.disabled = true;
+      scanBtn.classList.add('opacity-50');
+      tableBody.innerHTML = '';
+      scannedEmails = [];
+      updateStats();
+      setProgressBar(5, 'Connecting to email server...');
+
+      try {
+        const response = await fetch('/api/scan', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: accountId || null, limit, execute})
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Scan request failed');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = JSON.parse(line.slice(6));
+              handleScanEvent(payload, limit, execute);
+            }
+          }
+        }
+      } catch (err) {
+        showNotification('Scan error: ' + err.message, 'error');
+        setProgressBar(100, 'Error during scan');
+      } finally {
+        scanBtn.disabled = false;
+        scanBtn.classList.remove('opacity-50');
+      }
+    }
+
+    function handleScanEvent(event, totalLimit, liveExecution) {
+      if (event.type === 'status') {
+        const pct = event.step === 'init' ? 10 :
+                    event.step === 'model' ? 25 :
+                    event.step === 'fetching' ? 40 :
+                    event.step === 'classifying' ? 70 : 85;
+        setProgressBar(pct, event.message);
+      } else if (event.type === 'progress') {
+        const pct = 40 + (event.current / Math.max(event.total, 1)) * 30;
+        setProgressBar(pct, `Fetched ${event.current}/${event.total}: ${event.subject.slice(0, 30)}...`);
+      } else if (event.type === 'email_result') {
+        const pct = 70 + (event.current / Math.max(event.total, 1)) * 30;
+        setProgressBar(pct, `Classified email ${event.current} of ${event.total}`);
+        scannedEmails.push(event.data);
+        appendResultRow(event.data, liveExecution);
+        updateStats();
+      } else if (event.type === 'done') {
+        setProgressBar(100, `Completed scanning ${event.total} emails.`);
+        if (!liveExecution && scannedEmails.length > 0) {
+          document.getElementById('apply-changes-btn').classList.remove('hidden');
+        }
+        showNotification(`Scan complete! ${event.total} emails processed.`, 'success');
+      } else if (event.type === 'error') {
+        showNotification(event.message, 'error');
+        setProgressBar(100, 'Error: ' + event.message);
+      }
+    }
+
+    function appendResultRow(email, liveExecution) {
+      const tbody = document.getElementById('results-table-body');
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-800/30 transition text-xs';
+      tr.id = `row-${email.uid}`;
+
+      const reasonBadge = email.matched_rule ?
+        `<span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">Rule: ${email.matched_rule}</span>` :
+        `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">AI (${Math.round(email.junk_probability * 100)}% junk)</span>`;
+
+      const statusBadge = liveExecution ?
+        `<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px]">Applied</span>` :
+        `<span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px]">Preview</span>`;
+
+      tr.innerHTML = `
+        <td class="py-3 px-4 font-mono text-slate-500 text-center">${email.uid}</td>
+        <td class="py-3 px-4 font-medium text-slate-300 truncate max-w-[200px]" title="${email.sender}">${email.sender}</td>
+        <td class="py-3 px-4 text-slate-200 truncate max-w-[280px]" title="${email.subject}">${email.subject}</td>
+        <td class="py-3 px-4">${reasonBadge}</td>
+        <td class="py-3 px-4">
+          <select onchange="updateEmailDecision('${email.uid}', this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="KEEP" ${email.action === 'KEEP' ? 'selected' : ''}>Keep in Inbox</option>
+            <option value="DELETE" ${email.action === 'DELETE' ? 'selected' : ''}>Delete / Trash</option>
+            <option value="Receipts" ${email.target_folder === 'Receipts' ? 'selected' : ''}>Move &rarr; Receipts</option>
+            <option value="Newsletters" ${email.target_folder === 'Newsletters' ? 'selected' : ''}>Move &rarr; Newsletters</option>
+            <option value="Notifications" ${email.target_folder === 'Notifications' ? 'selected' : ''}>Move &rarr; Notifications</option>
+          </select>
+        </td>
+        <td class="py-3 px-4 text-center">${statusBadge}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function updateEmailDecision(uid, newChoice) {
+      const email = scannedEmails.find(e => e.uid === uid);
+      if (!email) return;
+
+      if (newChoice === 'KEEP') {
+        email.action = 'KEEP';
+        email.target_folder = null;
+      } else if (newChoice === 'DELETE') {
+        email.action = 'DELETE';
+        email.target_folder = null;
+      } else {
+        email.action = 'MOVE';
+        email.target_folder = newChoice;
+      }
+      updateStats();
+    }
+
+    function updateStats() {
+      const total = scannedEmails.length;
+      const keep = scannedEmails.filter(e => e.action === 'KEEP').length;
+      const del = scannedEmails.filter(e => e.action === 'DELETE').length;
+      const move = scannedEmails.filter(e => e.action === 'MOVE').length;
+
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-keep').textContent = keep;
+      document.getElementById('stat-move').textContent = move;
+      document.getElementById('stat-delete').textContent = del;
+      document.getElementById('results-count').textContent = `${total} emails`;
+    }
+
+    async function applyBatchDecisions() {
+      const accountId = document.getElementById('scan-account-select').value;
+      const btn = document.getElementById('apply-changes-btn');
+      const itemsToExecute = scannedEmails
+        .filter(e => e.action === 'DELETE' || e.action === 'MOVE')
+        .map(e => ({uid: e.uid, action: e.action, target_folder: e.target_folder}));
+
+      if (itemsToExecute.length === 0) {
+        showNotification('No actions to apply (all emails marked as Keep).', 'info');
+        return;
+      }
+
+      if (!confirm(`Apply actions to ${itemsToExecute.length} emails in your mailbox now?`)) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+
+      try {
+        const res = await fetch('/api/execute-batch', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({account_id: accountId || null, items: itemsToExecute})
+        });
+        const data = await res.json();
+        if (data.success) {
+          showNotification(`Successfully applied actions to ${data.executed_count} emails.`, 'success');
+          itemsToExecute.forEach(it => {
+            const row = document.getElementById(`row-${it.uid}`);
+            if (row) {
+              const statusCell = row.querySelector('td:last-child');
+              if (statusCell) {
+                statusCell.innerHTML = '<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px]">Applied</span>';
+              }
+            }
+          });
+          btn.classList.add('hidden');
+        } else {
+          showNotification('Error applying actions: ' + (data.errors || []).join(', '), 'error');
+        }
+      } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Apply Changes Now</span>';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', loadInitialData);
+  </script>
+</body>
+</html>

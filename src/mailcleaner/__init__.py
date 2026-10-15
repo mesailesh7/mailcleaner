@@ -1,2 +1,4 @@
+from mailcleaner.app import run
+
 def main() -> None:
-    print("Hello from mailcleaner!")
+    run()
